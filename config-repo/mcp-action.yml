@@ -1,0 +1,28 @@
+# Configuration for mcp-action, the Go executor.
+#
+# Not a Spring client: it reads this over HTTP itself and resolves the ${NAME:default}
+# placeholders against its own environment.
+#
+# No credential for a target machine appears here. Those travel sealed inside each job and
+# are opened one at a time through mcp-cipher — which is what makes an executor host worth
+# little to whoever takes it.
+
+mcp-action:
+  queue-host: ${QUEUE_HOST:127.0.0.1}
+  queue-port: ${QUEUE_PORT:5672}
+  queue-user: ${QUEUE_USER:root}
+  queue-password: ${QUEUE_PASSWORD}
+  queue-vhost: ${QUEUE_VHOST:/}
+
+  # Where to open sealed credentials.
+  cipher-address: ${MCP_CIPHER_ADDRESS:127.0.0.1:9090}
+  cipher-token: ${MCP_CIPHER_TOKEN:}
+
+  # Concurrent jobs per executor.
+  #
+  # Five rather than one because following a log holds a slot for as long as the log keeps
+  # printing — up to ten minutes — and with a single worker everything else queued behind
+  # it. The old reasoning still stands: a machine running several jobs is one whose failure
+  # takes several with it, so scale further by starting more executors rather than by
+  # raising this, and the broker hands each job to exactly one.
+  workers: ${MCP_ACTION_WORKERS:5}

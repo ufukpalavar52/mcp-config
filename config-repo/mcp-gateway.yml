@@ -1,0 +1,134 @@
+# Configuration for mcp-gateway.
+#
+# Served to any client whose spring.application.name is mcp-gateway. What stays behind in
+# the service's own application.yml is only what it needs to find this server.
+#
+# Credentials carry NO default. `${DB_PASSWORD}` rather than `${DB_PASSWORD:something}`,
+# because the plain text endpoints (`/mcp-gateway-default.yml`, `.properties`) resolve
+# placeholders before serving them: a default written here is served as a literal to anyone
+# who can reach this server. A placeholder with nothing behind it has nothing to leak.
+#
+# The cost is that the gateway will not start unless the variable is set. That is the
+# intended trade — a missing credential should stop the service, not be quietly replaced by
+# one that happens to be written down.
+#
+# Addresses and ports keep their defaults. They are not credentials, and a default that
+# lets a fresh checkout run is worth more than hiding a host name.
+
+spring:
+  datasource:
+    # Assembled from parts rather than taken whole, so a run configuration can point at
+    # another host or database without restating the JDBC URL and its query string.
+    #
+    # stringtype=unspecified lets PostgreSQL cast a bound string to its enum type.
+    # Without it every enum column would reject the value as character varying.
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/${DB_DATABASE:mcp}?stringtype=unspecified
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  jpa:
+    # No database-platform here on purpose: Hibernate detects PostgreSQL from the
+    # connection, and naming it explicitly only triggers HHH90000025. The tests that
+    # start without a database set the dialect themselves instead.
+    open-in-view: false
+    hibernate:
+      # The schema is applied by a separate Liquibase container before this service
+      # starts. The application performs no DDL and no schema validation on start up,
+      # so it never races the migration job and never touches the schema itself.
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        format_sql: false
+
+  rabbitmq:
+    # Where results arrive from mcp-action. This service is the only one with a database,
+    # so recording an outcome is its job.
+    host: ${QUEUE_HOST:127.0.0.1}
+    port: ${QUEUE_PORT:5672}
+    username: ${QUEUE_USER:guest}
+    password: ${QUEUE_PASSWORD}
+    virtual-host: ${QUEUE_VHOST:/}
+    listener:
+      simple:
+        # One at a time: recording a result is a short transaction, and a larger prefetch
+        # would only hold messages away from another instance.
+        prefetch: 1
+        # A message this service cannot handle is not requeued; see RunResultListener for
+        # why a result whose row is gone is discarded rather than retried forever.
+        default-requeue-rejected: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      timeout: 2s
+
+server:
+  port: ${SERVER_PORT:8080}
+
+mcp:
+  jwt:
+    secret: ${JWT_SECRET_KEY}
+    issuer: mcp-gateway
+    access-token-ttl: ${JWT_ACCESS_TTL:15m}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:7d}
+  conversation:
+    # How much of a console thread travels with the next question. A follow-up nearly
+    # always continues the last thing said, so the window matters more than the depth;
+    # everything older is folded into a summary rather than dropped.
+    thread-limit: ${CONVERSATION_THREAD_LIMIT:50}
+    summary-batch: ${CONVERSATION_SUMMARY_BATCH:10}
+    summarise: ${CONVERSATION_SUMMARISE:true}
+
+    # How many steps one prompt may become, including the first. Counted here rather than
+    # asked of the model: a loop that asks whether to continue can be told yes forever, and
+    # this is the only stopping rule that does not depend on it agreeing.
+    #
+    # Ten rather than five, because a goal naming several records needs a step each. "Delete
+    # the users called Yigit" found five and could take four of them before the count ran
+    # out, which reads as the loop having lost interest halfway.
+    #
+    # Still a small number on purpose. Every step is a model call and, where it changes
+    # something, a person approving it; a budget nobody notices is one nobody would think
+    # to lower.
+    goal-steps: ${CONVERSATION_GOAL_STEPS:10}
+    goal-loop: ${CONVERSATION_GOAL_LOOP:true}
+
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:3000}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allow-credentials: true
+    max-age-seconds: 3600
+  invitation:
+    # How long an invite link stays valid.
+    ttl: ${INVITATION_TTL:7d}
+  cipher:
+    # mcp-cipher holds the keys; this service holds ciphertext and a key id. No encryption
+    # key appears anywhere in this file, and none is served to this client — which is the
+    # whole reason that service exists.
+    address: ${MCP_CIPHER_ADDRESS:127.0.0.1:9090}
+    token: ${MCP_CIPHER_TOKEN:}
+    timeout: ${MCP_CIPHER_TIMEOUT:5s}
+
+  server:
+    # 127.0.0.1 rather than localhost on purpose. localhost resolves to ::1 first, and
+    # anything else listening on that port over IPv6 — OrbStack does, for one — answers
+    # instead of the MCP server, which binds IPv4 only.
+    url: ${MCP_SERVER_URL:http://127.0.0.1:8000}
+    # Empty default, unlike the credentials above: a default only leaks when it *is* the
+    # secret, and today there is no token — both processes run on one machine. Removing
+    # this default would stop the gateway from starting over a value nobody has set.
+    token: ${MCP_SERVER_TOKEN:}
+    # Routing an unmatched prompt is now two model calls — choose a tool, then answer
+    # without one — and a large hosted model takes tens of seconds for either. Thirty
+    # seconds cut them off mid-answer and reported the MCP server as unavailable, which
+    # sent everyone to look at a service that was working.
+    timeout: ${MCP_SERVER_TIMEOUT:120s}
+    # Publish the catalogue on start up. The MCP server keeps it in memory, so without
+    # this a restart on either side leaves it with no tools until someone republishes.
+    auto-publish: ${MCP_SERVER_AUTO_PUBLISH:true}

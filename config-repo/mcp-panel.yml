@@ -1,0 +1,21 @@
+# Configuration for mcp-panel.
+#
+# The panel is a Next.js app, not a Spring client: it reads this over HTTP itself and
+# resolves the placeholders below against its own environment, the same way a Spring
+# client would. See lib/config/remote-config.ts in that repository.
+#
+# Deliberately small. The panel runs in a browser, so anything served here reaches every
+# visitor — this file holds addresses, never credentials.
+
+panel:
+  # Where the browser reaches mcp-gateway. It must be an address the *browser* can resolve,
+  # not one that only works inside a container network, because this value is used by
+  # fetch() running on the visitor's machine.
+  api-url: ${API_URL:http://localhost:8080}
+
+  # Shown in the browser tab and the sidebar header.
+  title: ${PANEL_TITLE:MCP Panel}
+
+  # Which environment the operator is looking at. Rendered as a badge so a production
+  # panel does not look identical to a local one.
+  environment: ${PANEL_ENVIRONMENT:local}

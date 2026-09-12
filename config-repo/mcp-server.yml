@@ -1,0 +1,36 @@
+# Configuration for mcp-server.
+#
+# Not a Spring client: it reads this over HTTP itself and resolves the placeholders below
+# against its own environment, the same way a Spring client would. See app/remote_config.py
+# in that repository.
+#
+# Anything set in that service's own environment wins over what is served here. Central
+# configuration overrides the code's defaults; the machine in front of you overrides both.
+
+mcp-server:
+  # The model that picks a tool for a prompt.
+  #
+  # Distinct from the models on the definitions, and it has to be: routing runs before any
+  # tool is chosen, so there is no definition to take a model or a key from. That is also
+  # why the key is here rather than sealed in the database — nothing has been selected yet
+  # that could carry one.
+  #
+  # It was a local llama3.2, which could not hold the answer shape the router asks for and
+  # returned malformed JSON often enough that ordinary requests came back as "no tool
+  # matches". Choosing between tools is a harder question than it looks.
+  router-provider: ${ROUTER_PROVIDER:openai_compatible}
+  router-endpoint: ${ROUTER_ENDPOINT:https://api.deepinfra.com/v1/openai}
+  router-model: ${ROUTER_MODEL:Qwen/Qwen3-235B-A22B-Instruct-2507}
+  router-api-key: ${ROUTER_API_KEY:}
+
+  # Where a definition's own model key is opened, and the token this service presents.
+  cipher-address: ${MCP_CIPHER_ADDRESS:127.0.0.1:9090}
+  cipher-token: ${MCP_CIPHER_TOKEN:}
+
+  # The broker a planned job is published to. An empty host leaves this service planning
+  # only, which is a usable state rather than a broken one.
+  queue-host: ${QUEUE_HOST:}
+  queue-port: ${QUEUE_PORT:5672}
+  queue-user: ${QUEUE_USER:}
+  queue-password: ${QUEUE_PASSWORD:}
+  queue-vhost: ${QUEUE_VHOST:/}

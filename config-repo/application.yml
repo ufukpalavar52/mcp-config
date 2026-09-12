@@ -1,0 +1,29 @@
+# Settings every MCP service shares.
+#
+# Served to any client whatever its name, and overridden by that client's own file. Only
+# things that are genuinely common belong here — a value that is right for one service and
+# merely tolerable for another belongs in that service's file instead.
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+
+  mvc:
+    problemdetails:
+      enabled: false
+  web:
+    error:
+      # Error bodies are produced by each service's own handler, never by the container.
+      include-message: never
+      include-stacktrace: never
+      include-binding-errors: never
+
+logging:
+  level:
+    com.mcpgateway: ${LOG_LEVEL:INFO}
+    # Lettuce resolves DNS through Netty, which warns on macOS when its native resolver
+    # is absent. The native artifact does not load on Apple Silicon, and the fallback to
+    # system defaults is correct for a host name or an IP, so the warning is noise rather
+    # than a symptom.
+    io.netty.resolver.dns.DnsServerAddressStreamProviders: ERROR

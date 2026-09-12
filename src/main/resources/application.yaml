@@ -1,0 +1,108 @@
+spring:
+  application:
+    name: mcp-config
+
+  config:
+    # The credentials this server hands out. A plain KEY=value file, which is also valid
+    # properties syntax, so Boot can import it directly — no extra library.
+    #
+    # optional: so the server still starts without one. It then serves the placeholders
+    # unresolved, and a client fails on the missing value rather than on a mystery.
+    import: optional:file:./.env[.properties]
+
+  security:
+    user:
+      # Read from .env, imported above. Boot's own single-user authentication is enough
+      # here: there is one caller role — a service fetching its own file — and adding a
+      # user store would be more moving parts guarding the same one secret.
+      #
+      # No default password: Boot generates a random one and logs it when none is set,
+      # which would leave the stack unable to start for a reason printed once at boot.
+      name: ${CONFIG_USER:mcp}
+      password: ${CONFIG_PASSWORD:}
+
+  profiles:
+    # The native backend reads plain files instead of cloning a repository. Chosen because
+    # the configuration and the services live on one machine today: git adds a commit and
+    # a fetch between editing a value and seeing it, which buys history the local repo
+    # already provides. Switching later means adding a spring.cloud.config.server.git
+    # block and dropping this profile; nothing else changes.
+    active: native
+
+  cloud:
+    config:
+      server:
+        # Sent to every client on top of its own file, and this is where the values from
+        # .env enter the picture: the config server cannot substitute a ${PLACEHOLDER}
+        # into a file it serves — verified, it hands the literal text over and lets the
+        # client resolve it — so a value it wants to supply itself has to be supplied as a
+        # property, which is what overrides are.
+        #
+        # The reach is the cost: overrides go to EVERY application, so mcp-panel receives
+        # these too. Only put here what all clients may see, or accept that the config
+        # server now holds secrets for the whole stack and protect it accordingly.
+        overrides:
+          DB_HOST: ${DB_HOST:127.0.0.1}
+          DB_PORT: ${DB_PORT:5432}
+          DB_DATABASE: ${DB_DATABASE:mcp}
+          DB_USER: ${DB_USER:}
+          DB_PASSWORD: ${DB_PASSWORD:}
+          REDIS_HOST: ${REDIS_HOST:127.0.0.1}
+          REDIS_PORT: ${REDIS_PORT:6379}
+          REDIS_PASSWORD: ${REDIS_PASSWORD:}
+          JWT_SECRET_KEY: ${JWT_SECRET_KEY:}
+          # Where mcp-cipher listens, and the token callers present. Not a key: the keys
+          # never pass through here.
+          MCP_CIPHER_ADDRESS: ${MCP_CIPHER_ADDRESS:127.0.0.1:9090}
+          MCP_CIPHER_TOKEN: ${MCP_CIPHER_TOKEN:}
+          # Which origins the gateway's CORS accepts. Central because it is a fact about
+          # the deployment rather than about the gateway: the panel's port is chosen where
+          # the panel runs, and a browser refused by CORS reports "cannot reach the server"
+          # — which sends everyone to look at a gateway that is up and answering.
+          CORS_ORIGINS: ${CORS_ORIGINS:http://localhost:3000}
+          # The key for the model that routes a prompt to a tool, read by mcp-server.
+          #
+          # Here rather than sealed in the database because routing runs before any tool is
+          # chosen, so there is no definition whose sealed key it could use. An override
+          # reaches every client, this one included — it is an inference credential for a
+          # third party, weaker than the database password two lines up, and the same
+          # protection covers both.
+          ROUTER_API_KEY: ${ROUTER_API_KEY:}
+          # Broker, for mcp-action and for the gateway that dispatches to it.
+          QUEUE_HOST: ${QUEUE_HOST:127.0.0.1}
+          QUEUE_PORT: ${QUEUE_PORT:5672}
+          QUEUE_USER: ${QUEUE_USER:root}
+          QUEUE_PASSWORD: ${QUEUE_PASSWORD:}
+
+        native:
+          # Resolved against the working directory when the app is run from the project
+          # root, which is how both the IDE and ./mvnw spring-boot:run start it.
+          search-locations: ${CONFIG_REPO:file:./config-repo}
+
+server:
+  port: ${SERVER_PORT:8888}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # refresh lets a client pull new values without restarting; health is for the
+        # clients themselves, which cannot start while this server is unreachable.
+        include: health,info,refresh
+
+# A copy of the log on disk, next to the console.
+#
+# Both, not either: the console is what an IDE shows, and the file is what a log shipper
+# can tail after everybody has gone home.
+#
+# MCP_LOG_DIR names a directory, the same one the rest of the stack writes into. Note that
+# an *empty* MCP_LOG_DIR is not the off switch here — Spring treats an empty variable as a
+# value, not as absent, and the path would become "/mcp-config.log". To turn the file off, set
+# LOGGING_FILE_NAME to nothing; the test configuration does exactly that.
+logging:
+  file:
+    name: ${MCP_LOG_DIR:${user.home}/mcp-logs}/mcp-config.log
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 5

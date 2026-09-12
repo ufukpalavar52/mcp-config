@@ -1,0 +1,21 @@
+# Configuration for mcp-cipher, the Go encryption service.
+#
+# Not a Spring client: it reads this over HTTP itself and resolves the ${NAME:default}
+# placeholders against its own environment. See internal/config there.
+#
+# THE KEYS ARE NOT HERE, AND MUST NOT BE.
+#
+# This config server has no authentication, and its overrides reach every client — the
+# panel's Node process already receives the database password because of that. Putting the
+# encryption keys here would hand them to every one of those clients, which is precisely
+# what a separate cipher service exists to prevent: it is the only process that should hold
+# them, and they reach it through its own environment.
+#
+# What lives here is where it listens and who may call it. Both are deployment facts.
+
+mcp-cipher:
+  address: ${MCP_CIPHER_ADDRESS:127.0.0.1:9090}
+
+  # Shared secret callers present as x-cipher-token. Resolved from this service's own
+  # environment; the placeholder is a declaration that the setting exists, not the value.
+  token: ${MCP_CIPHER_TOKEN:}
