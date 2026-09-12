@@ -72,6 +72,19 @@ server:
   port: ${SERVER_PORT:8080}
 
 mcp:
+  # The first administrator, created once into an empty users table and never again.
+  #
+  # A fresh installation had no way in: registering through the panel gives a VIEWER,
+  # which is right for the second person and wrong for the first — they would have to
+  # reach past the application into the database to grant themselves the role.
+  #
+  # Left unset in an installation that manages its users elsewhere, and ignored the
+  # moment any account exists.
+  admin:
+    email: ${MCP_ADMIN_EMAIL:}
+    password: ${MCP_ADMIN_PASSWORD:}
+    name: ${MCP_ADMIN_NAME:Administrator}
+
   jwt:
     secret: ${JWT_SECRET_KEY}
     issuer: mcp-gateway
