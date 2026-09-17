@@ -16,6 +16,24 @@
 # lets a fresh checkout run is worth more than hiding a host name.
 
 spring:
+  # Invitations are mail, and mail is required: an invitation that cannot be delivered is
+  # not created at all. The way in that needs none of this is an administrator setting a
+  # password by hand, which is what makes requiring it safe.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SMTP_AUTH:true}
+          # STARTTLS on the submission port. A server wanting implicit TLS on 465 takes
+          # SMTP_PORT=465 and SMTP_SSL=true instead.
+          starttls:
+            enable: ${SMTP_STARTTLS:true}
+          ssl:
+            enable: ${SMTP_SSL:false}
   datasource:
     # Assembled from parts rather than taken whole, so a run configuration can point at
     # another host or database without restating the JDBC URL and its query string.
@@ -120,6 +138,14 @@ mcp:
   invitation:
     # How long an invite link stays valid.
     ttl: ${INVITATION_TTL:7d}
+
+    # Where the panel lives, because the link in the mail has to point somewhere and this
+    # service has no way of knowing. Not the gateway's own address: what is sent is a page
+    # a person opens, not an endpoint.
+    panelUrl: ${PANEL_URL:http://localhost:3000}
+
+    # Who the invitation appears to come from.
+    from: ${SMTP_FROM:}
   cipher:
     # mcp-cipher holds the keys; this service holds ciphertext and a key id. No encryption
     # key appears anywhere in this file, and none is served to this client — which is the
